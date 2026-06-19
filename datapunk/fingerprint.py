@@ -14,11 +14,34 @@ engines that deliberately keep results in their own memory format.
 from __future__ import annotations
 
 import hashlib
+import re
 from dataclasses import dataclass
 from typing import Any, Dict, List, Sequence
 
 import pyarrow as pa
 import pyarrow.compute as pc
+
+# Regex to match datetime-like strings that include a time component
+# (e.g. "2024-01-01 00:00:00", "2024-01-01T00:00:00.000000000").
+# Used to normalize all date representations to "YYYY-MM-DD" so that
+# engines which return Date types (Polars, DuckDB, Daft) and engines which
+# return midnight Timestamp types (pandas dt.floor("D")) produce identical
+# categorical fingerprints.
+_DATETIME_RE = re.compile(r"^(\d{4}-\d{2}-\d{2})[T ].*$")
+
+
+def _canonical_date_str(value_str: str) -> str:
+    """Normalize a date/datetime-like string to ``YYYY-MM-DD``.
+
+    Pandas ``dt.floor("D")`` produces ``datetime64[ns]`` values that
+    stringify as ``"2024-01-01 00:00:00"``, while Polars/DuckDB/Daft Date
+    types stringify as ``"2024-01-01"``.  Without this normalization the
+    categorical hash for the same logical date differs across engines.
+    """
+    m = _DATETIME_RE.match(value_str)
+    if m:
+        return m.group(1)
+    return value_str
 
 
 @dataclass
@@ -148,7 +171,7 @@ def _fingerprint_duckdb_table(
                 ORDER BY 1
                 """
             ).fetchall()
-            pairs = sorted((str(v), int(c)) for v, c in rows)
+            pairs = sorted((_canonical_date_str(str(v)), int(c)) for v, c in rows)
             h = hashlib.sha1(repr(pairs).encode()).hexdigest()[:16]
             nulls = con.execute(
                 f"SELECT COUNT(*) - COUNT({col_sql}) FROM {table_sql}"
@@ -184,7 +207,7 @@ def _fingerprint_pandas(df: Any, target_cols: List[str]) -> Dict[str, Any]:
             }
         else:
             vc = s.astype("string").value_counts(dropna=False)
-            pairs = sorted((str(k), int(v)) for k, v in vc.items())
+            pairs = sorted((_canonical_date_str(str(k)), int(v)) for k, v in vc.items())
             h = hashlib.sha1(repr(pairs).encode()).hexdigest()[:16]
             fp["cols"][name] = {"kind": "cat", "hash": h, "nulls": nulls}
     return fp
@@ -214,7 +237,7 @@ def _fingerprint_polars(df: Any, target_cols: List[str]) -> Dict[str, Any]:
             }
         else:
             vc = s.value_counts().to_dicts()
-            pairs = sorted((str(row.get(name)), int(row["count"])) for row in vc)
+            pairs = sorted((_canonical_date_str(str(row.get(name))), int(row["count"])) for row in vc)
             h = hashlib.sha1(repr(pairs).encode()).hexdigest()[:16]
             fp["cols"][name] = {"kind": "cat", "hash": h, "nulls": int(s.null_count())}
     return fp
@@ -262,7 +285,7 @@ def _fingerprint_arrow(table: pa.Table, target_cols: List[str]) -> Dict[str, Any
             }
         else:
             vc = pc.value_counts(col)
-            pairs = sorted((str(s["values"]), s["counts"]) for s in vc.to_pylist())
+            pairs = sorted((_canonical_date_str(str(s["values"])), s["counts"]) for s in vc.to_pylist())
             h = hashlib.sha1(repr(pairs).encode()).hexdigest()[:16]
             fp["cols"][name] = {"kind": "cat", "hash": h, "nulls": col.null_count}
     return fp
