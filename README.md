@@ -55,4 +55,4 @@ run_benchmark.py
 uv run python run_benchmark.py
 ```
 
-Results are written to `public/benchmark_results.json`, used by the dashboard at https://io.github.com/woozyking/datapunk.
+Results are written to `docs/benchmark_results.json`, used by the dashboard at https://woozyking.github.io/datapunk/.

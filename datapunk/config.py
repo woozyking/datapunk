@@ -26,6 +26,18 @@ SMALL_MONTHS = 1
 # the window suite typically needs a higher cap than the aggregations).
 LARGE_CAP_MB = 1024
 
+# Unit constants for memory accounting
+BYTES_PER_MB = 1024 * 1024
+BYTES_PER_GB = 1024 * 1024 * 1024
+KIB_PER_MB = 1024
+
 # Timing.
+# SMALL run: repeated, uncapped timing for stable speed comparisons.
 ITERATIONS = 5
 WARMUP = 1
+
+# LARGE run: one cold-ish capped pass. The large window is primarily a
+# feasibility/stress check, so repeated full-window materializations add noise
+# and memory pressure without improving the story.
+LARGE_ITERATIONS = 1
+LARGE_WARMUP = 0

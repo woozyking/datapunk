@@ -9,139 +9,151 @@
     "timestamp": "2026-06-16 17:40:12 UTC"
   },
   "01": {
-    "title": "High-Value Fleet Analysis",
-    "core_pattern": "Scan, Filter, & Project",
-    "description": "Long-distance, high-fare trips with sanity bounds. Polars: default vs. streaming. DuckDB: default vs. memory-capped.",
-    "iterations": 5,
+    "title": "High-Value Fleet Segment Summary",
+    "core_pattern": "Selective Scan, Filter, Derive, & Bounded Aggregate",
+    "description": "Long-distance, high-fare trips with passenger and fare sanity bounds, summarized by distance band. The large run scans the full window but returns a bounded summary table rather than materializing every matching row.",
+    "small_iterations": 5,
+    "small_warmup": 1,
+    "large_iterations": 1,
+    "large_warmup": 0,
     "runs": {
       "small": {
         "cap_mb": null,
         "n_months": 1,
+        "iterations": 5,
+        "warmup": 1,
         "engines": {
           "pandas v3.0.3": {
             "status": "ok",
-            "peak_mb": 459.5,
-            "time": 0.034504
+            "peak_mb": 373.7,
+            "time": 0.065642
           },
           "daft v0.7.15": {
             "status": "ok",
-            "peak_mb": 150.2,
-            "time": 0.039546
+            "peak_mb": 169.9,
+            "time": 0.039582
           },
           "dask v2026.6.0": {
             "status": "ok",
-            "peak_mb": 359.9,
-            "time": 0.040704
+            "peak_mb": 386.1,
+            "time": 0.123111
           },
           "duckdb v1.5.4": {
             "status": "ok",
-            "peak_mb": 169.0,
-            "time": 0.036167
+            "peak_mb": 136.2,
+            "time": 0.042742
           },
           "duckdb-capped v1.5.4": {
             "status": "ok",
-            "peak_mb": 163.6,
-            "time": 0.036436
+            "peak_mb": 137.8,
+            "time": 0.044557
           },
           "polars v1.41.2": {
             "status": "ok",
-            "peak_mb": 257.5,
-            "time": 0.01336
+            "peak_mb": 317.5,
+            "time": 0.019357
           },
           "polars-streaming v1.41.2": {
             "status": "ok",
-            "peak_mb": 255.6,
-            "time": 0.013198
+            "peak_mb": 329.8,
+            "time": 0.018015
           }
         },
-        "verify": "\u2705 7 engine(s) agree (220,200 rows)"
+        "verify": "\u2705 7 engine(s) agree (4 rows)"
       },
       "large": {
         "cap_mb": 1024,
         "n_months": 24,
+        "iterations": 1,
+        "warmup": 0,
         "engines": {
           "pandas v3.0.3": {
             "status": "oom",
-            "peak_mb": 1037.6
+            "peak_mb": 1024.2
           },
           "daft v0.7.15": {
             "status": "ok",
-            "peak_mb": 721.0,
-            "time": 0.549477
+            "peak_mb": 520.7,
+            "time": 0.791345
           },
           "dask v2026.6.0": {
             "status": "oom",
-            "peak_mb": 1041.5
+            "peak_mb": 1077.6
           },
           "duckdb v1.5.4": {
             "status": "ok",
-            "peak_mb": 948.2,
-            "time": 0.394448
+            "peak_mb": 215.4,
+            "time": 0.797525
           },
           "duckdb-capped v1.5.4": {
             "status": "ok",
-            "peak_mb": 947.7,
-            "time": 0.41265
+            "peak_mb": 214.9,
+            "time": 0.617688
           },
           "polars v1.41.2": {
             "status": "ok",
-            "peak_mb": 896.6,
-            "time": 0.200499
+            "peak_mb": 603.2,
+            "time": 0.500825
           },
           "polars-streaming v1.41.2": {
             "status": "ok",
-            "peak_mb": 888.1,
-            "time": 0.193417
+            "peak_mb": 571.3,
+            "time": 0.439962
           }
         },
-        "verify": "\u2705 5 engine(s) agree (6,468,548 rows)"
+        "verify": "\u2705 5 engine(s) agree (4 rows)"
       }
     }
   },
   "02": {
     "title": "Temporal Demand & Revenue Aggregation",
     "core_pattern": "GroupBy & Hashing Aggregations",
-    "description": "Hourly trip volume and revenue across 24 months. Polars: default vs. streaming. DuckDB: default vs. memory-capped.",
-    "iterations": 5,
+    "description": "Hourly trip volume and revenue across 24 months.",
+    "small_iterations": 5,
+    "small_warmup": 1,
+    "large_iterations": 1,
+    "large_warmup": 0,
     "runs": {
       "small": {
         "cap_mb": null,
         "n_months": 1,
+        "iterations": 5,
+        "warmup": 1,
         "engines": {
           "pandas v3.0.3": {
             "status": "ok",
-            "peak_mb": 367.1,
-            "time": 0.10738
+            "peak_mb": 385.7,
+            "time": 0.114739
           },
           "daft v0.7.15": {
             "status": "ok",
-            "peak_mb": 168.8,
-            "time": 0.052097
+            "peak_mb": 167.5,
+            "time": 0.057435
           },
           "dask v2026.6.0": {
             "status": "ok",
-            "peak_mb": 418.0,
-            "time": 0.142884
+            "peak_mb": 396.1,
+            "time": 0.154853
           },
           "duckdb v1.5.4": {
             "status": "ok",
-            "peak_mb": 150.6,
-            "time": 0.03731
+            "peak_mb": 146.3,
+            "time": 0.040072
           },
           "duckdb-capped v1.5.4": {
             "status": "ok",
-            "peak_mb": 150.5,
-            "time": 0.037193
+            "peak_mb": 149.5,
+            "time": 0.039502
           },
           "polars v1.41.2": {
             "status": "ok",
-            "peak_mb": 216.2,
-            "time": 0.030244
+            "peak_mb": 260.1,
+            "time": 0.034169
           },
           "polars-streaming v1.41.2": {
             "status": "ok",
-            "peak_mb": 228.6,
-            "time": 0.024832
+            "peak_mb": 241.3,
+            "time": 0.029127
           }
         },
         "verify": "\u2705 7 engine(s) agree (24 rows)"
@@ -149,38 +161,40 @@
       "large": {
         "cap_mb": 1024,
         "n_months": 24,
+        "iterations": 1,
+        "warmup": 0,
         "engines": {
           "pandas v3.0.3": {
             "status": "oom",
-            "peak_mb": 1044.1
+            "peak_mb": 1045.9
           },
           "daft v0.7.15": {
             "status": "ok",
-            "peak_mb": 494.6,
-            "time": 0.765636
+            "peak_mb": 476.3,
+            "time": 1.073786
           },
           "dask v2026.6.0": {
             "status": "oom",
-            "peak_mb": 1029.9
+            "peak_mb": 1032.4
           },
           "duckdb v1.5.4": {
             "status": "ok",
-            "peak_mb": 267.0,
-            "time": 0.458911
+            "peak_mb": 209.5,
+            "time": 0.862567
           },
           "duckdb-capped v1.5.4": {
             "status": "ok",
-            "peak_mb": 269.8,
-            "time": 0.445323
+            "peak_mb": 212.4,
+            "time": 0.865532
           },
           "polars v1.41.2": {
             "status": "oom",
-            "peak_mb": 1030.9
+            "peak_mb": 1073.0
           },
           "polars-streaming v1.41.2": {
             "status": "ok",
-            "peak_mb": 663.4,
-            "time": 0.48945
+            "peak_mb": 597.3,
+            "time": 0.624834
           }
         },
         "verify": "\u2705 4 engine(s) agree (24 rows)"
@@ -190,47 +204,52 @@
   "03": {
     "title": "Regional Revenue Distribution",
     "core_pattern": "Multi-Table Relational Joins & Whitelist Filtering",
-    "description": "Broadcast-join 24 months of trips to the zone lookup, roll up by borough. Polars: default vs. streaming. DuckDB: default vs. memory-capped.",
-    "iterations": 5,
+    "description": "Broadcast-join 24 months of trips to the zone lookup, roll up by borough.",
+    "small_iterations": 5,
+    "small_warmup": 1,
+    "large_iterations": 1,
+    "large_warmup": 0,
     "runs": {
       "small": {
         "cap_mb": null,
         "n_months": 1,
+        "iterations": 5,
+        "warmup": 1,
         "engines": {
           "pandas v3.0.3": {
             "status": "ok",
-            "peak_mb": 1349.4,
-            "time": 0.237119
+            "peak_mb": 1670.0,
+            "time": 0.242705
           },
           "daft v0.7.15": {
             "status": "ok",
-            "peak_mb": 199.9,
-            "time": 0.057044
+            "peak_mb": 203.8,
+            "time": 0.062007
           },
           "dask v2026.6.0": {
             "status": "ok",
-            "peak_mb": 1188.9,
-            "time": 0.285996
+            "peak_mb": 1303.1,
+            "time": 0.328295
           },
           "duckdb v1.5.4": {
             "status": "ok",
-            "peak_mb": 154.9,
-            "time": 0.037774
+            "peak_mb": 148.6,
+            "time": 0.042472
           },
           "duckdb-capped v1.5.4": {
             "status": "ok",
-            "peak_mb": 154.2,
-            "time": 0.037899
+            "peak_mb": 143.3,
+            "time": 0.03918
           },
           "polars v1.41.2": {
             "status": "ok",
-            "peak_mb": 448.2,
-            "time": 0.046644
+            "peak_mb": 425.4,
+            "time": 0.048084
           },
           "polars-streaming v1.41.2": {
             "status": "ok",
-            "peak_mb": 290.2,
-            "time": 0.018504
+            "peak_mb": 275.4,
+            "time": 0.021538
           }
         },
         "verify": "\u2705 7 engine(s) agree (6 rows)"
@@ -238,38 +257,40 @@
       "large": {
         "cap_mb": 1024,
         "n_months": 24,
+        "iterations": 1,
+        "warmup": 0,
         "engines": {
           "pandas v3.0.3": {
             "status": "oom",
-            "peak_mb": 1060.6
+            "peak_mb": 1028.1
           },
           "daft v0.7.15": {
             "status": "ok",
-            "peak_mb": 479.7,
-            "time": 1.289565
+            "peak_mb": 457.4,
+            "time": 1.619827
           },
           "dask v2026.6.0": {
             "status": "oom",
-            "peak_mb": 1103.5
+            "peak_mb": 1043.7
           },
           "duckdb v1.5.4": {
             "status": "ok",
-            "peak_mb": 252.6,
-            "time": 0.440974
+            "peak_mb": 186.4,
+            "time": 0.761185
           },
           "duckdb-capped v1.5.4": {
             "status": "ok",
-            "peak_mb": 245.9,
-            "time": 0.406163
+            "peak_mb": 186.4,
+            "time": 0.769938
           },
           "polars v1.41.2": {
             "status": "oom",
-            "peak_mb": 1039.7
+            "peak_mb": 1081.6
           },
           "polars-streaming v1.41.2": {
             "status": "ok",
-            "peak_mb": 614.2,
-            "time": 0.470738
+            "peak_mb": 557.1,
+            "time": 0.59158
           }
         },
         "verify": "\u2705 4 engine(s) agree (6 rows)"
@@ -279,47 +300,52 @@
   "04": {
     "title": "Consumer Behavioral Profiling",
     "core_pattern": "Conditional Vectorization & Multi-Key Profiling",
-    "description": "Distance and tip tiers via nested conditionals, card payments only. Polars: default vs. streaming. DuckDB: default vs. memory-capped.",
-    "iterations": 5,
+    "description": "Distance and tip tiers via nested conditionals, card payments only.",
+    "small_iterations": 5,
+    "small_warmup": 1,
+    "large_iterations": 1,
+    "large_warmup": 0,
     "runs": {
       "small": {
         "cap_mb": null,
         "n_months": 1,
+        "iterations": 5,
+        "warmup": 1,
         "engines": {
           "pandas v3.0.3": {
             "status": "ok",
-            "peak_mb": 834.5,
-            "time": 0.559632
+            "peak_mb": 850.7,
+            "time": 0.594363
           },
           "daft v0.7.15": {
             "status": "ok",
-            "peak_mb": 235.2,
-            "time": 0.098239
+            "peak_mb": 235.4,
+            "time": 0.118605
           },
           "dask v2026.6.0": {
             "status": "ok",
-            "peak_mb": 981.5,
-            "time": 0.558052
+            "peak_mb": 932.6,
+            "time": 0.594396
           },
           "duckdb v1.5.4": {
             "status": "ok",
-            "peak_mb": 138.8,
-            "time": 0.052643
+            "peak_mb": 134.7,
+            "time": 0.059657
           },
           "duckdb-capped v1.5.4": {
             "status": "ok",
-            "peak_mb": 140.0,
-            "time": 0.05366
+            "peak_mb": 135.7,
+            "time": 0.05582
           },
           "polars v1.41.2": {
             "status": "ok",
-            "peak_mb": 391.2,
-            "time": 0.040281
+            "peak_mb": 404.1,
+            "time": 0.052158
           },
           "polars-streaming v1.41.2": {
             "status": "ok",
-            "peak_mb": 311.9,
-            "time": 0.028019
+            "peak_mb": 315.9,
+            "time": 0.035067
           }
         },
         "verify": "\u2705 7 engine(s) agree (9 rows)"
@@ -327,38 +353,40 @@
       "large": {
         "cap_mb": 1024,
         "n_months": 24,
+        "iterations": 1,
+        "warmup": 0,
         "engines": {
           "pandas v3.0.3": {
             "status": "oom",
-            "peak_mb": 1045.5
+            "peak_mb": 1038.6
           },
           "daft v0.7.15": {
             "status": "ok",
-            "peak_mb": 934.6,
-            "time": 1.92625
+            "peak_mb": 881.1,
+            "time": 2.260448
           },
           "dask v2026.6.0": {
             "status": "oom",
-            "peak_mb": 1026.1
+            "peak_mb": 1029.8
           },
           "duckdb v1.5.4": {
             "status": "ok",
-            "peak_mb": 250.4,
-            "time": 0.536854
+            "peak_mb": 191.7,
+            "time": 0.829005
           },
           "duckdb-capped v1.5.4": {
             "status": "ok",
-            "peak_mb": 251.4,
-            "time": 0.53756
+            "peak_mb": 189.8,
+            "time": 0.985329
           },
           "polars v1.41.2": {
             "status": "oom",
-            "peak_mb": 1063.1
+            "peak_mb": 1067.1
           },
           "polars-streaming v1.41.2": {
             "status": "ok",
-            "peak_mb": 831.1,
-            "time": 0.551514
+            "peak_mb": 719.2,
+            "time": 0.787983
           }
         },
         "verify": "\u2705 4 engine(s) agree (9 rows)"
@@ -368,47 +396,52 @@
   "05": {
     "title": "Financial Event Sequencing",
     "core_pattern": "Ordered Analytical Window / Top-N by Group",
-    "description": "Top 5 highest-fare trips per day. Each implementation uses its own native materialized output: Pandas uses a chunked nlargest reduction, Polars uses lazy grouped top-k, DuckDB uses max(arg, n) top-N aggregate materialized to a temp table, Dask uses a two-phase partition-local top-N reduction, and Daft uses a partitioned row_number window. Polars: default vs. streaming. DuckDB: default vs. memory-capped.",
-    "iterations": 5,
+    "description": "Top 5 positive, plausible fare events per day.",
+    "small_iterations": 5,
+    "small_warmup": 1,
+    "large_iterations": 1,
+    "large_warmup": 0,
     "runs": {
       "small": {
         "cap_mb": null,
         "n_months": 1,
+        "iterations": 5,
+        "warmup": 1,
         "engines": {
           "pandas v3.0.3": {
             "status": "ok",
-            "peak_mb": 433.4,
-            "time": 0.106179
+            "peak_mb": 597.9,
+            "time": 0.124174
           },
           "daft v0.7.15": {
             "status": "ok",
-            "peak_mb": 227.4,
-            "time": 0.103708
+            "peak_mb": 268.4,
+            "time": 0.113616
           },
           "dask v2026.6.0": {
             "status": "ok",
-            "peak_mb": 472.2,
-            "time": 0.130734
+            "peak_mb": 599.2,
+            "time": 0.142697
           },
           "duckdb v1.5.4": {
             "status": "ok",
-            "peak_mb": 151.8,
-            "time": 0.042799
+            "peak_mb": 149.8,
+            "time": 0.05706
           },
           "duckdb-capped v1.5.4": {
             "status": "ok",
-            "peak_mb": 157.3,
-            "time": 0.036496
+            "peak_mb": 151.5,
+            "time": 0.055273
           },
           "polars v1.41.2": {
             "status": "ok",
-            "peak_mb": 301.9,
-            "time": 0.033877
+            "peak_mb": 483.8,
+            "time": 0.045876
           },
           "polars-streaming v1.41.2": {
             "status": "ok",
-            "peak_mb": 291.7,
-            "time": 0.03236
+            "peak_mb": 403.9,
+            "time": 0.048127
           }
         },
         "verify": "\u274c daft v0.7.15 differs from pandas v3.0.3 (pickup_date: categorical distribution differs)"
@@ -416,39 +449,41 @@
       "large": {
         "cap_mb": 1024,
         "n_months": 24,
+        "iterations": 1,
+        "warmup": 0,
         "engines": {
           "pandas v3.0.3": {
             "status": "oom",
-            "peak_mb": 1039.5
+            "peak_mb": 1024.8
           },
           "daft v0.7.15": {
             "status": "oom",
-            "peak_mb": 1067.2
+            "peak_mb": 1029.0
           },
           "dask v2026.6.0": {
             "status": "oom",
-            "peak_mb": 1042.8
+            "peak_mb": 1048.1
           },
           "duckdb v1.5.4": {
             "status": "ok",
-            "peak_mb": 279.1,
-            "time": 0.510326
+            "peak_mb": 241.1,
+            "time": 1.166905
           },
           "duckdb-capped v1.5.4": {
             "status": "ok",
-            "peak_mb": 272.3,
-            "time": 0.487568
+            "peak_mb": 236.3,
+            "time": 0.954687
           },
           "polars v1.41.2": {
             "status": "oom",
-            "peak_mb": 1043.1
+            "peak_mb": 1060.2
           },
           "polars-streaming v1.41.2": {
             "status": "oom",
-            "peak_mb": 1075.7
+            "peak_mb": 1074.7
           }
         },
-        "verify": "\u2705 2 engine(s) agree (3,678 rows)"
+        "verify": "\u2705 2 engine(s) agree (3,655 rows)"
       }
     }
   }

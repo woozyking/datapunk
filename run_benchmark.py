@@ -1,7 +1,7 @@
 """
 Datapunk Benchmark CLI.
 
-    uv run python run_benchmark.py  # run all notebooks, write output JSON used by dashboard (public/index.html)
+    uv run python run_benchmark.py  # run all notebooks, write output JSON used by dashboard (docs/index.html)
 """
 
 import glob
@@ -11,8 +11,8 @@ import subprocess
 import sys
 
 NOTEBOOK_DIR = "notebooks"
-PUBLIC_DIR = "public"
-RESULTS_PATH = os.path.join(PUBLIC_DIR, "benchmark_results.json")
+DOCS_DIR = "docs"
+RESULTS_PATH = os.path.join(DOCS_DIR, "benchmark_results.json")
 
 
 def execute_notebooks():
@@ -20,7 +20,7 @@ def execute_notebooks():
     if not notebooks:
         print(f"No notebooks in {NOTEBOOK_DIR}/.")
         sys.exit(1)
-    os.makedirs(PUBLIC_DIR, exist_ok=True)
+    os.makedirs(DOCS_DIR, exist_ok=True)
     for nb in notebooks:
         print(f"Executing {nb} …")
         cmd = [

@@ -73,7 +73,8 @@ def run_engine(
         proc_env = {**os.environ, **(env or {})}
         proc = subprocess.Popen(cmd, stderr=subprocess.PIPE, env=proc_env)
         ps = psutil.Process(proc.pid)
-        limit_bytes = (limit_mb or 0) * config.LARGE_CAP_MB * config.LARGE_CAP_MB
+        bytes_per_mb = getattr(config, "BYTES_PER_MB", 1024 * 1024)
+        limit_bytes = None if limit_mb is None else limit_mb * bytes_per_mb
         peak = 0
         oomed = False
 
@@ -84,7 +85,7 @@ def run_engine(
                 break
             if rss > peak:
                 peak = rss
-            if limit_mb is not None and rss > limit_bytes:
+            if limit_bytes is not None and rss > limit_bytes:
                 _kill_tree(ps)
                 oomed = True
                 break
@@ -93,7 +94,7 @@ def run_engine(
         stderr = proc.stderr.read().decode(errors="replace") if proc.stderr else ""
         proc.wait()
 
-        peak_mb = peak / (config.LARGE_CAP_MB * config.LARGE_CAP_MB)
+        peak_mb = peak / bytes_per_mb
 
         if oomed:
             return {"status": "oom", "peak_mb": peak_mb, "limit_mb": limit_mb}

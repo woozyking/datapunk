@@ -1,7 +1,7 @@
 """
 Result fingerprinting for cross-engine consistency checks.
 
-The timed benchmark functions return each engine's native *materialized* output.
+The timed benchmark functions return each engine's native materialized output.
 Fingerprinting happens after timing and reduces that native result to a small,
 order-independent summary: row count plus per-column aggregate statistics.
 
@@ -25,7 +25,7 @@ import pyarrow.compute as pc
 class DuckDBTableResult:
     """A native DuckDB materialized-result handle.
 
-    Benchmark functions can return this after running `CREATE TEMP TABLE ... AS`
+    Benchmark functions can return this after running ``CREATE TEMP TABLE ... AS``
     so the timed output is materialized in DuckDB itself, not exported to Arrow
     or pandas. The open connection owns the session-scoped temp table.
     """
@@ -42,12 +42,17 @@ class DuckDBTableResult:
 
 def close_result(df: Any) -> None:
     """Release native resources held only for post-run verification."""
+    if isinstance(df, tuple) and len(df) == 2 and isinstance(df[1], dict):
+        df = df[0]
     if isinstance(df, DuckDBTableResult):
         df.close()
 
 
 def fingerprint(df: Any, target_cols: List[str]) -> Dict[str, Any]:
     """Reduce *df* (restricted to *target_cols*) to a comparable summary dict."""
+    if isinstance(df, tuple) and len(df) == 2 and isinstance(df[1], dict):
+        df = df[0]
+
     if isinstance(df, DuckDBTableResult):
         return _fingerprint_duckdb_table(df, target_cols)
 
@@ -113,8 +118,8 @@ def _fingerprint_duckdb_table(
     for name in cols:
         col_sql = _quote_ident(name)
         dtype = schema[name].upper()
-        stat_expr = _duckdb_stat_expr(col_sql, dtype)
         if _duckdb_is_numeric_like(dtype):
+            stat_expr = _duckdb_stat_expr(col_sql, dtype)
             total, min_v, max_v, mean_v, nulls = con.execute(
                 f"""
                 SELECT
@@ -153,7 +158,6 @@ def _fingerprint_duckdb_table(
 
 
 def _fingerprint_pandas(df: Any, target_cols: List[str]) -> Dict[str, Any]:
-    import pandas as pd
     from pandas.api import types as pdt
 
     cols = [c for c in target_cols if c in df.columns]
@@ -194,9 +198,6 @@ def _fingerprint_polars(df: Any, target_cols: List[str]) -> Dict[str, Any]:
     for name in cols:
         s = df.get_column(name)
         dtype_s = str(s.dtype)
-        # Booleans are numeric for summary purposes. Temporal columns are
-        # left as values and hashed categorically to avoid unit mismatches
-        # across Date/Timestamp representations.
         if dtype_s == "Boolean":
             s2 = s.cast(pl.Int8)
         else:
@@ -338,25 +339,10 @@ def _duckdb_is_numeric_like(dtype: str) -> bool:
     return dtype == "BOOLEAN" or any(tok in dtype for tok in numeric_tokens)
 
 
-def _duckdb_is_temporal(dtype: str) -> bool:
-    dtype = dtype.upper()
-    return (
-        dtype.startswith("DATE")
-        or dtype.startswith("TIMESTAMP")
-        or dtype.startswith("TIME")
-    )
-
-
 def _duckdb_stat_expr(col_sql: str, dtype: str) -> str:
     dtype = dtype.upper()
     if dtype == "BOOLEAN":
         return f"CAST({col_sql} AS TINYINT)"
-    if dtype.startswith("TIMESTAMP"):
-        return f"epoch_ns({col_sql})"
-    if dtype.startswith("DATE"):
-        return f"epoch({col_sql})"
-    if dtype.startswith("TIME"):
-        return f"epoch_ns({col_sql})"
     return col_sql
 
 
@@ -370,10 +356,6 @@ def _is_polars_dataframe(df: Any) -> bool:
 
 def _polars_is_numeric(dtype_s: str) -> bool:
     return dtype_s.startswith(("Int", "UInt", "Float", "Decimal"))
-
-
-def _polars_is_temporal(dtype_s: str) -> bool:
-    return dtype_s.startswith(("Date", "Datetime", "Time", "Duration"))
 
 
 def _pandas_sum_as_float(s: Any) -> float:

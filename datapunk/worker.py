@@ -16,6 +16,7 @@ kills this process, no file is written and the parent records an OOM.
 
 from __future__ import annotations
 
+import gc
 import json
 import resource
 import sys
@@ -30,9 +31,23 @@ from datapunk.fingerprint import close_result, fingerprint
 def _maxrss_mb() -> float:
     """Peak RSS of this process. ru_maxrss is bytes on macOS, KiB on Linux."""
     rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    bytes_per_mb = getattr(config, "BYTES_PER_MB", 1024 * 1024)
+    kib_per_mb = getattr(config, "KIB_PER_MB", 1024)
     if sys.platform == "darwin":
-        return rss / (config.LARGE_CAP_MB * config.LARGE_CAP_MB)
-    return rss / config.LARGE_CAP_MB
+        return rss / bytes_per_mb
+    return rss / kib_per_mb
+
+
+def _unpack(raw):
+    if isinstance(raw, tuple) and len(raw) == 2 and isinstance(raw[1], dict):
+        return raw
+    return raw, {}
+
+
+def _dispose(raw) -> None:
+    df, _ = _unpack(raw)
+    close_result(df)
+    del df
 
 
 def main(payload_path: str, result_path: str) -> None:
@@ -47,31 +62,45 @@ def main(payload_path: str, result_path: str) -> None:
     target_cols = payload["target_cols"]
 
     result = {"status": "ok"}
+    last_df = None
     try:
         # Warm-up runs (engine-internal caches, JIT, thread pools) — discarded.
         for _ in range(warmup):
-            fn(*args, **kwargs)
+            raw = fn(*args, **kwargs)
+            _dispose(raw)
+            del raw
+            gc.collect()
 
         times = []
-        last_df, meta = None, {}
-        for _ in range(iterations):
+        meta = {}
+        for i in range(iterations):
             t0 = time.perf_counter()
             raw = fn(*args, **kwargs)
             times.append(time.perf_counter() - t0)
-            if isinstance(raw, tuple) and len(raw) == 2 and isinstance(raw[1], dict):
-                last_df, meta = raw
+            df, meta = _unpack(raw)
+
+            # Keep only the final successful output for post-timing verification.
+            # Earlier iterations are closed immediately so repeated large runs do
+            # not accumulate native handles or Python objects in the worker.
+            if i == iterations - 1:
+                last_df = df
             else:
-                last_df, meta = raw, {}
+                close_result(df)
+                del raw, df
+                gc.collect()
 
         # Fingerprint AFTER timing so it never inflates the measured cost.
         result["fingerprint"] = fingerprint(last_df, target_cols)
-        close_result(last_df)
         result["times"] = times
         result["meta"] = meta
     except MemoryError:
         result = {"status": "oom_internal"}
     except Exception as exc:  # engine/API error — report cleanly
         result = {"status": "error", "error": f"{type(exc).__name__}: {exc}"}
+    finally:
+        if last_df is not None:
+            close_result(last_df)
+        gc.collect()
 
     result["maxrss_mb"] = _maxrss_mb()
     with open(result_path, "w") as f:

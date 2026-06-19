@@ -22,7 +22,7 @@ import pandas as pd
 import psutil
 
 from datapunk import config, dataio
-from datapunk.fingerprint import compare, to_pandas_frame
+from datapunk.fingerprint import close_result, compare, to_pandas_frame
 from datapunk.runner import run_engine
 
 _BASELINE = "pandas"
@@ -41,10 +41,18 @@ class DatapunkReporter:
         large_cap_mb: int = config.LARGE_CAP_MB,
         iterations: int = config.ITERATIONS,
         warmup: int = config.WARMUP,
+        large_iterations: int | None = None,
+        large_warmup: int | None = None,
         with_lookup: bool = False,
     ):
         self.iterations = iterations
         self.warmup = warmup
+        self.large_iterations = (
+            config.LARGE_ITERATIONS if large_iterations is None else large_iterations
+        )
+        self.large_warmup = (
+            config.LARGE_WARMUP if large_warmup is None else large_warmup
+        )
         self.large_cap_mb = large_cap_mb
 
         # Resolve + download data.
@@ -75,12 +83,18 @@ class DatapunkReporter:
         print("-" * 52)
         print(f"  OS:        {platform.system()} {platform.release()}")
         print(f"  CPU:       {_cpu_model()} ({os.cpu_count()} cores)")
-        print(f"  RAM:       {mem.total / config.LARGE_CAP_MB**3:.1f} GB")
+        print(
+            f"  RAM:       {mem.total / getattr(config, 'BYTES_PER_GB', 1024**3):.1f} GB"
+        )
         print(f"  Python:    v{platform.python_version()}")
-        print(f"  Small run: {len(self.small_paths)} month, uncapped")
+        print(
+            f"  Small run: {len(self.small_paths)} month, uncapped, "
+            f"{self.iterations} iter + {self.warmup} warmup"
+        )
         print(
             f"  Large run: {len(self.large_paths)} months, cap = "
-            f"{self.large_cap_mb} MB (physical RSS)"
+            f"{self.large_cap_mb} MB (physical RSS), "
+            f"{self.large_iterations} iter + {self.large_warmup} warmup"
         )
         print("-" * 52)
 
@@ -96,9 +110,15 @@ class DatapunkReporter:
         lookup_args = (self.lookup_path,) if pass_lookup else ()
         labels: Dict[int, str] = {}  # id(fn) -> label, learned from the small run
 
-        for mode, paths, cap in (
-            ("small", self.small_paths, None),
-            ("large", self.large_paths, self.large_cap_mb),
+        for mode, paths, cap, iterations, warmup in (
+            ("small", self.small_paths, None, self.iterations, self.warmup),
+            (
+                "large",
+                self.large_paths,
+                self.large_cap_mb,
+                self.large_iterations,
+                self.large_warmup,
+            ),
         ):
             data_arg = list(paths)
             print(
@@ -115,8 +135,8 @@ class DatapunkReporter:
                 r = run_engine(
                     fn,
                     args=(data_arg, *lookup_args),
-                    iterations=self.iterations,
-                    warmup=self.warmup,
+                    iterations=iterations,
+                    warmup=warmup,
                     target_cols=target_cols,
                     limit_mb=cap,
                 )
@@ -182,7 +202,10 @@ class DatapunkReporter:
         if self._analysis_lookup:
             args += (self.lookup_path,)
         raw = self._analysis_fn(*args)
-        return to_pandas_frame(raw, target_cols=target_cols)
+        try:
+            return to_pandas_frame(raw, target_cols=target_cols)
+        finally:
+            close_result(raw)
 
     # ------------------------------------------------------------------
     def show_scorecard(self, title: str):
@@ -240,7 +263,7 @@ class DatapunkReporter:
         title,
         core_pattern,
         description,
-        output_path="public/benchmark_results.json",
+        output_path="docs/benchmark_results.json",
     ):
         path = os.path.join(dataio.project_root(), output_path)
         os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -262,6 +285,10 @@ class DatapunkReporter:
                 "n_months": (
                     len(self.small_paths) if mode == "small" else len(self.large_paths)
                 ),
+                "iterations": self.large_iterations
+                if mode == "large"
+                else self.iterations,
+                "warmup": self.large_warmup if mode == "large" else self.warmup,
                 "engines": engines,
                 "verify": self._verify.get(mode, ""),
             }
@@ -270,7 +297,10 @@ class DatapunkReporter:
             "title": title,
             "core_pattern": core_pattern,
             "description": description,
-            "iterations": self.iterations,
+            "small_iterations": self.iterations,
+            "small_warmup": self.warmup,
+            "large_iterations": self.large_iterations,
+            "large_warmup": self.large_warmup,
             "runs": runs,
         }
         existing["environment"] = self._env_block(existing.get("environment"))
@@ -284,7 +314,9 @@ class DatapunkReporter:
             "os": f"{platform.system()} {platform.release()}",
             "cpu_model": _cpu_model(),
             "cpu_cores": os.cpu_count(),
-            "total_ram_gb": round(mem.total / config.LARGE_CAP_MB**3, 2),
+            "total_ram_gb": round(
+                mem.total / getattr(config, "BYTES_PER_GB", 1024**3), 2
+            ),
             "python_version": platform.python_version(),
             "large_cap_mb": self.large_cap_mb,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
