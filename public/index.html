@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Datapunk Performance Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.plot.ly/plotly-3.6.0.min.js"></script>
+    <style>.plotly-graph-div { max-width: 100%; }</style>
+</head>
+<body class="bg-white text-gray-900 antialiased">
+
+<div class="mx-auto max-w-5xl px-4 py-10 sm:px-6 lg:px-8" id="app">
+    <header class="pb-6">
+        <h1 class="text-3xl font-extrabold tracking-tight text-gray-900 sm:text-4xl">
+            Datapunk Performance Dashboard
+        </h1>
+        <p class="mt-2 text-sm text-gray-500">
+            Real-world analytics benchmarks across five data engines (with memory-aware
+            twins) on NYC taxi data. Each suite runs <strong>twice</strong>: a single month
+            <strong>uncapped</strong> (apples-to-apples), then the full 24-month window under
+            a <strong>physical RAM cap</strong> that surfaces out-of-core behaviour. Engines
+            that must materialise everything <span class="font-semibold text-red-600">OOM</span>;
+            engines configured with memory limits spill and survive.
+            ★ = best in run · Stress = peak RAM ÷ cap (lower is better).
+        </p>
+    </header>
+
+    <div id="env-panel" class="mb-10 rounded-lg border border-gray-200 bg-gray-50 p-5 text-sm leading-relaxed text-gray-700"></div>
+    <div id="suites"></div>
+</div>
+
+<script>
+const PALETTE = ['#636EFA','#EF553B','#00CC96','#AB63FA','#FFA15A',
+                 '#19D3F3','#FF6692','#B6E880','#FF97FF','#FECB52'];
+const OOM_RED = '#b91c1c';
+const CAP_AMBER = '#b45309';
+const COLOR = {};
+
+const engineBase = (label) => String(label).split(' v')[0];
+
+function baselineSort(a, b) {
+    const ab = a.toLowerCase().includes('pandas');
+    const bb = b.toLowerCase().includes('pandas');
+    if (ab && !bb) return -1;
+    if (!ab && bb) return 1;
+    return a.localeCompare(b);
+}
+
+function buildColorMap(data) {
+    const bases = new Set();
+    for (const k of Object.keys(data)) {
+        if (k === 'environment') continue;
+        const runs = data[k].runs || {};
+        for (const m of Object.keys(runs))
+            for (const lbl of Object.keys(runs[m].engines || {}))
+                bases.add(engineBase(lbl));
+    }
+    [...bases].sort(baselineSort).forEach((b, i) => { COLOR[b] = PALETTE[i % PALETTE.length]; });
+}
+
+// Reconstruct the notebook filename from suite id + title (matches the
+// generator's slug rule). Falls back to suite.notebook if the JSON provides it.
+function notebookUrl(key, suite) {
+    const base = 'https://github.com/woozyking/datapunk/blob/main/notebooks/';
+    if (suite.notebook) return base + encodeURIComponent(suite.notebook);
+    const slug = suite.title.replace(/&/g, '').replace(/\s+/g, ' ').trim().replace(/ /g, '_');
+    return base + encodeURIComponent(`${key}_${slug}.ipynb`);
+}
+
+async function init() {
+    const resp = await fetch('benchmark_results.json');
+    if (!resp.ok) {
+        document.getElementById('suites').innerHTML =
+            '<p class="text-red-600">Failed to load benchmark_results.json</p>';
+        return;
+    }
+    const data = await resp.json();
+    buildColorMap(data);
+    renderEnvironment(data.environment || {});
+    renderSuites(data);
+}
+
+function renderEnvironment(env) {
+    const cap = env.large_cap_mb
+        ? `<span class="inline-block rounded-full bg-amber-100 px-2 py-0.5 text-xs font-bold text-amber-800">${env.large_cap_mb} MB cap (large run)</span>`
+        : '';
+    document.getElementById('env-panel').innerHTML = `
+        <p class="mb-3 font-sans text-sm font-semibold text-gray-900">Benchmark Environment</p>
+        <div class="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            <p><span class="text-gray-400">OS</span> ${env.os || 'N/A'}</p>
+            <p><span class="text-gray-400">CPU</span> ${env.cpu_model || 'N/A'}</p>
+            <p><span class="text-gray-400">Cores</span> ${env.cpu_cores || 'N/A'} · ${env.total_ram_gb?.toFixed(2) || 'N/A'} GB RAM</p>
+            <p><span class="text-gray-400">Python</span> v${env.python_version || 'N/A'}</p>
+            <p>${cap}</p>
+            <p class="sm:col-span-2"><span class="text-gray-400">Run date</span> ${env.timestamp || 'N/A'}</p>
+        </div>`;
+}
+
+function verifyBadge(verify) {
+    if (!verify) return '';
+    const cls = verify.startsWith('✅') ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : verify.startsWith('❌') ? 'bg-red-50 text-red-700 border-red-200'
+              : 'bg-amber-50 text-amber-700 border-amber-200';
+    return `<span class="inline-block rounded-md border px-2 py-0.5 text-xs ${cls}">${verify}</span>`;
+}
+
+function renderSuites(data) {
+    const container = document.getElementById('suites');
+    const keys = Object.keys(data).filter(k => k !== 'environment').sort();
+    const chartJobs = [];
+
+    for (const key of keys) {
+        const suite = data[key];
+        const runs = suite.runs || {};
+
+        let runsHtml = '';
+        for (const mode of ['small', 'large']) {
+            const run = runs[mode];
+            if (!run) continue;
+            const built = renderRun(key, mode, run, suite.iterations);
+            runsHtml += built.html;
+            chartJobs.push(...built.jobs);
+        }
+
+        const section = document.createElement('section');
+        section.className = 'mb-14';
+        section.innerHTML = `
+            <h2 class="mb-1 text-2xl font-bold tracking-tight text-gray-900">${suite.title}</h2>
+            <div class="mb-6 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <div class="mb-2 flex flex-wrap items-center gap-2">
+                    <span class="inline-block rounded-full border border-gray-300 bg-white px-2.5 py-0.5 text-xs font-semibold text-gray-600">⚙ ${suite.core_pattern}</span>
+                    <span class="text-xs text-gray-400">·</span>
+                    <span class="text-xs text-gray-500">${suite.iterations}-iteration avg</span>
+                </div>
+                <p class="text-sm leading-relaxed text-gray-700">${suite.description}</p>
+                <div class="mt-3">
+                    <a href="${notebookUrl(key, suite)}" target="_blank" class="inline-flex items-center gap-1.5 rounded-md border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition hover:bg-gray-50 hover:border-gray-400">
+                        <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        Notebook
+                    </a>
+                </div>
+            </div>
+            ${runsHtml}`;
+        container.appendChild(section);
+    }
+
+    requestAnimationFrame(() => chartJobs.forEach(drawChart));
+}
+
+function renderRun(key, mode, run, iterations) {
+    const engines = Object.keys(run.engines).sort(baselineSort);
+    const cap = run.cap_mb;
+    const heading = mode === 'small'
+        ? `Single Month · Uncapped`
+        : `Full Window (${run.n_months} mo) · ${cap} MB Cap`;
+
+    const ok = engines.filter(n => run.engines[n].status === 'ok');
+    const slowest = ok.length ? Math.max(...ok.map(n => run.engines[n].time)) : null;
+    const vel = (n) => slowest / run.engines[n].time;
+    const bestVel = ok.length ? Math.max(...ok.map(vel)) : null;
+    const stress = (n) => cap ? run.engines[n].peak_mb / cap : null;
+    const bestStress = (cap && ok.length) ? Math.min(...ok.map(stress)) : null;
+
+    let rows = '';
+    for (const n of engines) {
+        const r = run.engines[n];
+        const isBase = engineBase(n).toLowerCase().includes('pandas') && n === engines[0];
+        const name = isBase ? `${n} <span class="text-gray-400">(baseline)</span>` : n;
+
+        let timeCell, velCell, peakCell, stressCell;
+        if (r.status === 'ok') {
+            const v = vel(n);
+            timeCell = `<span class="font-mono text-gray-700">${r.time.toFixed(4)}s</span>`;
+            velCell = (v === bestVel)
+                ? `<span class="inline-block rounded-full bg-emerald-500 px-2.5 py-0.5 text-xs font-extrabold text-white">${v.toFixed(1)}× ★</span>`
+                : `<span class="inline-block rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-800">${v.toFixed(1)}×</span>`;
+            peakCell = `<span class="font-mono text-gray-700">${r.peak_mb.toFixed(0)} MB</span>`;
+            if (cap) {
+                const s = stress(n);
+                stressCell = (s === bestStress)
+                    ? `<span class="font-mono font-extrabold text-amber-600">${s.toFixed(2)} ★</span>`
+                    : `<span class="font-mono text-gray-700">${s.toFixed(2)}</span>`;
+            } else stressCell = '<span class="text-gray-300">—</span>';
+        } else {
+            const tag = r.status === 'oom' ? 'OOM' : 'ERROR';
+            timeCell = `<span class="inline-block rounded-full bg-red-100 px-2.5 py-0.5 text-xs font-extrabold text-red-700">${tag}</span>`;
+            velCell = '<span class="text-gray-300">—</span>';
+            peakCell = `<span class="font-mono text-red-600">≥${(r.peak_mb || 0).toFixed(0)} MB</span>`;
+            stressCell = cap ? `<span class="font-mono text-red-600">≥${((r.peak_mb || cap) / cap).toFixed(2)}</span>` : '<span class="text-gray-300">—</span>';
+        }
+        rows += `<tr class="${r.status !== 'ok' ? 'bg-red-50/40' : ''}">
+            <td class="px-4 py-3 font-medium text-gray-900">${name}</td>
+            <td class="px-4 py-3">${timeCell}</td>
+            <td class="px-4 py-3">${velCell}</td>
+            <td class="px-4 py-3">${peakCell}</td>
+            <td class="px-4 py-3">${stressCell}</td>
+        </tr>`;
+    }
+
+    const tId = `t-${key}-${mode}`, mId = `m-${key}-${mode}`;
+    const accent = mode === 'small' ? 'border-l-4 border-sky-300' : 'border-l-4 border-amber-300';
+
+    const html = `
+        <div class="mb-8 rounded-lg border border-gray-200 ${accent} bg-white p-4 shadow-sm">
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 class="text-sm font-bold uppercase tracking-wide text-gray-700">${heading}</h3>
+                ${verifyBadge(run.verify)}
+            </div>
+            <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                <div id="${tId}" style="width:100%;"></div>
+                <div id="${mId}" style="width:100%;"></div>
+            </div>
+            <div class="mt-4 overflow-x-auto rounded-lg border border-gray-200">
+                <table class="min-w-full divide-y divide-gray-200 text-sm">
+                    <thead class="bg-gray-50"><tr>
+                        <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Engine</th>
+                        <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Time</th>
+                        <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Velocity</th>
+                        <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Peak RAM</th>
+                        <th class="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wider text-gray-500">Stress</th>
+                    </tr></thead>
+                    <tbody class="divide-y divide-gray-100 bg-white">${rows}</tbody>
+                </table>
+            </div>
+        </div>`;
+
+    const jobs = [];
+    if (ok.length) {
+        jobs.push({
+            divId: tId, title: 'Compute time (s · lower is better)',
+            labels: ok, values: ok.map(n => run.engines[n].time),
+            colors: ok.map(n => COLOR[engineBase(n)]),
+            text: ok.map(n => run.engines[n].time.toFixed(3) + 's'),
+        });
+    } else {
+        jobs.push({ divId: tId, empty: 'All engines OOM/errored — no timings.' });
+    }
+    jobs.push({
+        divId: mId, title: 'Peak RAM (MB)',
+        labels: engines, values: engines.map(n => run.engines[n].peak_mb || 0),
+        colors: engines.map(n => COLOR[engineBase(n)]),
+        lineColors: engines.map(n => run.engines[n].status === 'ok' ? 'rgba(0,0,0,0)' : OOM_RED),
+        lineWidths: engines.map(n => run.engines[n].status === 'ok' ? 0 : 3),
+        text: engines.map(n => run.engines[n].status === 'ok'
+            ? (run.engines[n].peak_mb || 0).toFixed(0)
+            : (run.engines[n].status === 'oom' ? 'OOM' : 'ERR')),
+        capLine: cap || null,
+    });
+    return { html, jobs };
+}
+
+function drawChart(job) {
+    if (job.empty) {
+        Plotly.purge(job.divId);
+        document.getElementById(job.divId).innerHTML =
+            `<p class="px-2 py-8 text-center text-xs text-gray-400">${job.empty}</p>`;
+        return;
+    }
+    const n = job.labels.length;
+    const trace = {
+        type: 'bar', orientation: 'h',
+        x: job.values, y: job.labels,
+        text: job.text, textposition: 'auto', cliponaxis: false,
+        marker: {
+            color: job.colors,
+            line: job.lineColors ? { color: job.lineColors, width: job.lineWidths } : undefined,
+        },
+        hovertemplate: '%{y}: %{x}<extra></extra>',
+    };
+    const layout = {
+        title: { text: job.title, font: { size: 13, color: '#374151' }, x: 0, xanchor: 'left' },
+        height: Math.max(170, 70 + n * 42),
+        margin: { l: 130, r: 50, t: 36, b: 28 },
+        paper_bgcolor: 'white', plot_bgcolor: 'white',
+        showlegend: false,
+        xaxis: { zeroline: false, gridcolor: '#f1f1f1' },
+        yaxis: { autorange: 'reversed', automargin: true },
+        shapes: job.capLine ? [{
+            type: 'line', xref: 'x', yref: 'paper',
+            x0: job.capLine, x1: job.capLine, y0: 0, y1: 1,
+            line: { color: CAP_AMBER, width: 2, dash: 'dash' },
+        }] : [],
+        annotations: job.capLine ? [{
+            x: job.capLine, xref: 'x', y: 1, yref: 'paper',
+            text: `cap ${job.capLine} MB`, showarrow: false,
+            font: { size: 10, color: CAP_AMBER }, xanchor: 'right', yanchor: 'bottom',
+        }] : [],
+    };
+    Plotly.newPlot(job.divId, [trace], layout, { responsive: true, displayModeBar: false });
+}
+
+init();
+</script>
+</body>
+</html>
