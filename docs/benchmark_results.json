@@ -10,6 +10,7 @@
   },
   "01": {
     "title": "High-Value Fleet Segment Summary",
+    "notebook": "01_High-Value_Fleet_Analysis.ipynb",
     "core_pattern": "Selective Scan, Filter, Derive, & Bounded Aggregate",
     "description": "Long-distance, high-fare trips with passenger and fare sanity bounds, summarized by distance band. The large run scans the full window but returns a bounded summary table rather than materializing every matching row.",
     "small_iterations": 5,
