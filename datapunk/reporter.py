@@ -257,12 +257,29 @@ class DatapunkReporter:
             display(Markdown(md))
 
     # ------------------------------------------------------------------
+    def _detect_notebook(self) -> str | None:
+        """Resolve the originating notebook filename.
+
+        Prefers the ``DATAPUNK_NOTEBOOK_PATH`` environment variable set by
+        the benchmark CLI; falls back to walking the call stack for a
+        ``.ipynb`` frame (e.g. when run directly in a VS Code notebook).
+        """
+        env_path = os.environ.get("DATAPUNK_NOTEBOOK_PATH")
+        if env_path and env_path.endswith(".ipynb"):
+            return os.path.basename(env_path)
+        for frame in inspect.stack():
+            path = frame.filename
+            if path.endswith(".ipynb"):
+                return os.path.basename(path)
+        return None
+
     def export_results(
         self,
         suite_id,
         title,
         core_pattern,
         description,
+        notebook: str | None = None,
         output_path="docs/benchmark_results.json",
     ):
         path = os.path.join(dataio.project_root(), output_path)
@@ -293,10 +310,14 @@ class DatapunkReporter:
                 "verify": self._verify.get(mode, ""),
             }
 
+        if notebook is None:
+            notebook = self._detect_notebook()
+
         existing[suite_id] = {
             "title": title,
             "core_pattern": core_pattern,
             "description": description,
+            "notebook": notebook,
             "small_iterations": self.iterations,
             "small_warmup": self.warmup,
             "large_iterations": self.large_iterations,

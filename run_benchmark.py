@@ -35,7 +35,8 @@ def execute_notebooks():
             "--ExecutePreprocessor.timeout=1800",
             nb,
         ]
-        r = subprocess.run(cmd, capture_output=True, text=True)
+        env = {**os.environ, "DATAPUNK_NOTEBOOK_PATH": os.path.abspath(nb)}
+        r = subprocess.run(cmd, capture_output=True, text=True, env=env)
         if r.returncode != 0:
             print(f"❌ {nb}\n{r.stderr}")
             sys.exit(1)

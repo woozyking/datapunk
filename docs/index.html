@@ -57,8 +57,9 @@ function buildColorMap(data) {
     [...bases].sort(baselineSort).forEach((b, i) => { COLOR[b] = PALETTE[i % PALETTE.length]; });
 }
 
-// Reconstruct the notebook filename from suite id + title (matches the
-// generator's slug rule). Falls back to suite.notebook if the JSON provides it.
+// Use the notebook filename stored in the JSON (auto-detected from the
+// call stack at export time). Falls back to suite id + title slug only
+// if the field is missing (older exports).
 function notebookUrl(key, suite) {
     const base = 'https://github.com/woozyking/datapunk/blob/main/notebooks/';
     if (suite.notebook) return base + encodeURIComponent(suite.notebook);
