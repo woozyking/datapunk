@@ -237,7 +237,10 @@ def _fingerprint_polars(df: Any, target_cols: List[str]) -> Dict[str, Any]:
             }
         else:
             vc = s.value_counts().to_dicts()
-            pairs = sorted((_canonical_date_str(str(row.get(name))), int(row["count"])) for row in vc)
+            pairs = sorted(
+                (_canonical_date_str(str(row.get(name))), int(row["count"]))
+                for row in vc
+            )
             h = hashlib.sha1(repr(pairs).encode()).hexdigest()[:16]
             fp["cols"][name] = {"kind": "cat", "hash": h, "nulls": int(s.null_count())}
     return fp
@@ -285,7 +288,10 @@ def _fingerprint_arrow(table: pa.Table, target_cols: List[str]) -> Dict[str, Any
             }
         else:
             vc = pc.value_counts(col)
-            pairs = sorted((_canonical_date_str(str(s["values"])), s["counts"]) for s in vc.to_pylist())
+            pairs = sorted(
+                (_canonical_date_str(str(s["values"])), s["counts"])
+                for s in vc.to_pylist()
+            )
             h = hashlib.sha1(repr(pairs).encode()).hexdigest()[:16]
             fp["cols"][name] = {"kind": "cat", "hash": h, "nulls": col.null_count}
     return fp

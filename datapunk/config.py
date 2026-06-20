@@ -33,7 +33,7 @@ KIB_PER_MB = 1024
 
 # Timing.
 # SMALL run: repeated, uncapped timing for stable speed comparisons.
-ITERATIONS = 5
+ITERATIONS = 10
 WARMUP = 1
 
 # LARGE run: one cold-ish capped pass. The large window is primarily a

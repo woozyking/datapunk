@@ -321,8 +321,6 @@ class DatapunkReporter:
             "large_cap_mb": self.large_cap_mb,
             "timestamp": time.strftime("%Y-%m-%d %H:%M:%S UTC", time.gmtime()),
         }
-        if prior:  # keep the first run's timestamp stable across suites
-            env["timestamp"] = prior.get("timestamp", env["timestamp"])
         return env
 
 
